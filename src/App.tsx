@@ -50,7 +50,7 @@ function App() {
   const { switchChainAsync } = useSwitchChain()
 
   const [direction, setDirection] = useState<Direction>('toArc')
-  const [selectedEvmChainId, setSelectedEvmChainId] = useState(baseSepolia.id)
+  const [selectedEvmChainId, setSelectedEvmChainId] = useState<number>(baseSepolia.id)
   const [amount, setAmount] = useState('1.00')
   const [status, setStatus] = useState<Status>('idle')
   const [explorerUrl, setExplorerUrl] = useState('')
@@ -137,7 +137,10 @@ function App() {
 
       const provider = await connector?.getProvider()
       if (!provider) throw new Error('Could not get wallet provider')
-      const adapter = await createAdapterFromProvider({ provider })
+
+      const adapter = await createAdapterFromProvider({
+        provider: provider as any,
+      })
       const kit = new BridgeKit()
 
       const feeAmount = (parseFloat(amount) * FEE_PERCENT).toFixed(2)
