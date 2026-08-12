@@ -9,12 +9,7 @@ function Navbar({ isConnected, address, onConnect }: NavbarProps) {
     <header className="arc-navbar w-full border-b border-white/[0.09] bg-slate-950/20 backdrop-blur-xl">
       <div className="mx-auto flex min-h-18 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <a href="#bridge" className="group flex shrink-0 items-center gap-2.5 rounded-lg py-2 focus-visible:outline-none">
-          <span className="flex size-8 items-center justify-center rounded-[10px] border border-violet-300/20 bg-violet-400/[0.11] text-violet-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-            <svg viewBox="0 0 28 28" aria-hidden="true" className="size-4.5 fill-none stroke-current" strokeWidth="2.4">
-              <path d="M6 9.5 14 5l8 4.5v9L14 23l-8-4.5v-9Z" />
-              <path d="m10 14 2.5 2.5L18 11" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
+          <img src={arcBridgeLogo} alt="" className="h-7 w-auto object-contain sm:h-8" />
           <span className="text-[0.98rem] font-semibold tracking-[-0.04em] text-white">ArcBridge</span>
         </a>
 
@@ -75,3 +70,4 @@ function Navbar({ isConnected, address, onConnect }: NavbarProps) {
 }
 
 export default Navbar
+import arcBridgeLogo from '../assets/ArcBridge-navbar.png'

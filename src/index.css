@@ -73,7 +73,7 @@ a {
 #root > .min-h-screen {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow-x: hidden;
   min-height: 100svh;
   background:
     radial-gradient(circle at 14% 12%, rgba(85, 108, 238, 0.2), transparent 31rem),
@@ -108,6 +108,162 @@ a {
 #root .bridge-main {
   width: 100%;
   padding: clamp(1.5rem, 5vw, 4rem);
+}
+
+.arc-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(19rem, 0.75fr);
+  align-items: center;
+  gap: clamp(2.5rem, 8vw, 8rem);
+  width: min(100% - 3rem, 72rem);
+  margin: 0 auto;
+  padding: clamp(4.5rem, 11vw, 8.5rem) 0 clamp(2rem, 6vw, 4rem);
+}
+
+.arc-hero__copy {
+  position: relative;
+  z-index: 1;
+  max-width: 43rem;
+}
+
+.arc-hero__eyebrow,
+.arc-hero__network-label {
+  margin: 0;
+  color: #b6b2ff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.arc-hero__eyebrow::before {
+  display: inline-block;
+  width: 1.75rem;
+  height: 1px;
+  margin: 0 0.65rem 0.2rem 0;
+  background: currentColor;
+  content: "";
+  opacity: 0.75;
+}
+
+.arc-hero__title {
+  max-width: 41rem;
+  margin: 1.25rem 0 0;
+  color: var(--arc-text);
+  font-size: clamp(2.8rem, 6vw, 5.5rem);
+  font-weight: 620;
+  letter-spacing: -0.065em;
+  line-height: 0.99;
+}
+
+.arc-hero__title span {
+  color: #bab8ff;
+}
+
+.arc-hero__description {
+  max-width: 33rem;
+  margin: 1.6rem 0 0;
+  color: var(--arc-muted);
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  line-height: 1.7;
+}
+
+.arc-hero__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 2rem;
+  padding: 0.8rem 1.05rem 0.8rem 1.2rem;
+  border: 1px solid rgba(173, 167, 255, 0.38);
+  border-radius: var(--arc-radius-sm);
+  background: var(--arc-accent);
+  box-shadow: 0 12px 28px rgba(77, 68, 204, 0.22);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.arc-hero__cta:hover {
+  background: var(--arc-accent-hover);
+  box-shadow: 0 15px 32px rgba(77, 68, 204, 0.32);
+  transform: translateY(-1px);
+}
+
+.arc-hero__network-panel {
+  position: relative;
+  min-height: 21rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  overflow: hidden;
+  border: 1px solid var(--arc-border);
+  border-radius: var(--arc-radius-lg);
+  background: rgba(20, 29, 53, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 24px 55px rgba(0, 0, 0, 0.16);
+}
+
+.arc-hero__network-panel::before {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(185, 191, 255, 0.14) 0.8px, transparent 0.8px);
+  background-size: 15px 15px;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  opacity: 0.42;
+}
+
+.arc-hero__orb {
+  position: absolute;
+  top: -4rem;
+  right: -3.5rem;
+  display: grid;
+  width: 15rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(158, 170, 255, 0.2);
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 34%, rgba(160, 184, 255, 0.26), rgba(87, 76, 207, 0.1) 43%, transparent 69%);
+  box-shadow: 0 0 0 2.3rem rgba(102, 91, 222, 0.045), 0 0 0 5.1rem rgba(102, 91, 222, 0.025);
+}
+
+.arc-hero__orb-core {
+  display: grid;
+  width: 5.5rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(213, 219, 255, 0.34);
+  border-radius: 50%;
+  background: rgba(24, 31, 76, 0.65);
+  color: #e3e4ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.arc-hero__network-content {
+  position: relative;
+  z-index: 1;
+  margin-top: 9.5rem;
+}
+
+.arc-hero__network-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  max-width: 17rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arc-hero__network-list li {
+  padding: 0.48rem 0.68rem;
+  border: 1px solid rgba(187, 198, 255, 0.13);
+  border-radius: 999px;
+  background: rgba(10, 16, 35, 0.48);
+  color: #c6cee6;
+  font-size: 0.75rem;
+  line-height: 1;
 }
 
 #root .bridge-main > .bg-slate-800 {
@@ -206,5 +362,22 @@ a {
   #root .bridge-main > .bg-slate-800 {
     margin-top: 1.25rem;
     border-radius: var(--arc-radius-md);
+  }
+}
+
+@media (max-width: 760px) {
+  .arc-hero {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    width: min(100% - 2rem, 36rem);
+    padding-top: 3.5rem;
+  }
+
+  .arc-hero__network-panel {
+    min-height: 16rem;
+  }
+
+  .arc-hero__network-content {
+    margin-top: 6.5rem;
   }
 }
