@@ -203,32 +203,34 @@ function App() {
   const toLabel = direction === 'toArc' ? 'Arc Testnet' : selectedEvmChain.label
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <Navbar isConnected={isConnected} address={address} />
-        <Stats totalVolume={totalVolume} />
-        <BridgeCard
-          isConnected={isConnected}
-          chains={EVM_CHAINS}
-          direction={direction}
-          selectedEvmChainId={selectedEvmChainId}
-          amount={amount}
-          feePercent={FEE_PERCENT}
-          status={status}
-          explorerUrl={explorerUrl}
-          errorMsg={errorMsg}
-          fromLabel={fromLabel}
-          toLabel={toLabel}
-          evmBalanceDisplay={evmBalanceDisplay}
-          arcBalanceDisplay={arcBalanceDisplay}
-          onConnect={() => connect({ connector: connectors[0] })}
-          onEvmChainChange={direction === 'toArc' ? handleEvmChainChange : setSelectedEvmChainId}
-          onDirectionToggle={handleDirectionToggle}
-          onAmountChange={setAmount}
-          onBridge={handleBridge}
-          onDisconnect={() => disconnect()}
-        />
-      </div>
+    <div className="min-h-screen bg-slate-900 flex flex-col p-0">
+      <Navbar isConnected={isConnected} address={address} onConnect={() => connect({ connector: connectors[0] })} />
+      <main id="bridge" className="bridge-main flex flex-1 items-center justify-center p-4">
+        <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl">
+          <Stats totalVolume={totalVolume} />
+          <BridgeCard
+            isConnected={isConnected}
+            chains={EVM_CHAINS}
+            direction={direction}
+            selectedEvmChainId={selectedEvmChainId}
+            amount={amount}
+            feePercent={FEE_PERCENT}
+            status={status}
+            explorerUrl={explorerUrl}
+            errorMsg={errorMsg}
+            fromLabel={fromLabel}
+            toLabel={toLabel}
+            evmBalanceDisplay={evmBalanceDisplay}
+            arcBalanceDisplay={arcBalanceDisplay}
+            onConnect={() => connect({ connector: connectors[0] })}
+            onEvmChainChange={direction === 'toArc' ? handleEvmChainChange : setSelectedEvmChainId}
+            onDirectionToggle={handleDirectionToggle}
+            onAmountChange={setAmount}
+            onBridge={handleBridge}
+            onDisconnect={() => disconnect()}
+          />
+        </div>
+      </main>
     </div>
   )
 }

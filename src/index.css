@@ -75,7 +75,6 @@ a {
   isolation: isolate;
   overflow: hidden;
   min-height: 100svh;
-  padding: clamp(1.5rem, 5vw, 4rem);
   background:
     radial-gradient(circle at 14% 12%, rgba(85, 108, 238, 0.2), transparent 31rem),
     radial-gradient(circle at 88% 82%, rgba(121, 79, 220, 0.15), transparent 28rem),
@@ -106,7 +105,12 @@ a {
   background: rgba(121, 76, 226, 0.1);
 }
 
-#root > .min-h-screen > .bg-slate-800 {
+#root .bridge-main {
+  width: 100%;
+  padding: clamp(1.5rem, 5vw, 4rem);
+}
+
+#root .bridge-main > .bg-slate-800 {
   position: relative;
   width: min(100%, 25rem);
   padding: clamp(1.5rem, 4vw, 2rem);
@@ -118,7 +122,7 @@ a {
   -webkit-backdrop-filter: blur(20px);
 }
 
-#root > .min-h-screen > .bg-slate-800::before {
+#root .bridge-main > .bg-slate-800::before {
   position: absolute;
   inset: 0;
   border: 1px solid rgba(255, 255, 255, 0.035);
@@ -194,12 +198,12 @@ a {
 }
 
 @media (max-width: 480px) {
-  #root > .min-h-screen {
+  #root .bridge-main {
     align-items: flex-start;
     padding: 1rem;
   }
 
-  #root > .min-h-screen > .bg-slate-800 {
+  #root .bridge-main > .bg-slate-800 {
     margin-top: 1.25rem;
     border-radius: var(--arc-radius-md);
   }
