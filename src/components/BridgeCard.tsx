@@ -1,7 +1,7 @@
 import AmountInput from './AmountInput'
 import ChainSelector from './ChainSelector'
-import Footer from './Footer'
 import TransactionStatus from './TransactionStatus'
+import WalletDisconnect from './WalletDisconnect'
 
 type Status = 'idle' | 'switching' | 'bridging' | 'success' | 'error'
 type Direction = 'toArc' | 'fromArc'
@@ -54,13 +54,28 @@ function BridgeCard({
   onBridge,
   onDisconnect,
 }: BridgeCardProps) {
+  const sourceBalance = direction === 'toArc' ? evmBalanceDisplay : arcBalanceDisplay
+
   return (
-    <>
+    <div className="arc-bridge-card">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-violet-300">ArcBridge</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-white">Bridge</h2>
+          <p className="mt-1 text-sm leading-5 text-slate-400">Move USDC across supported networks.</p>
+        </div>
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-violet-200/15 bg-violet-400/[0.08] text-violet-200">
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4 fill-none stroke-current" strokeWidth="1.7">
+            <path d="M5 8.5h10.5M12.5 5.5l3 3-3 3M19 15.5H8.5M11.5 18.5l-3-3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </div>
+
       <a
         href="https://faucet.circle.com/"
         target="_blank"
         rel="noreferrer"
-        className="text-xs text-purple-400 hover:text-purple-300 underline block mb-4"
+        className="mb-4 block text-xs text-violet-300 underline decoration-violet-300/35 underline-offset-3 transition-colors hover:text-violet-100"
       >
         Need testnet USDC? Get some from Circle's faucet →
       </a>
@@ -68,63 +83,68 @@ function BridgeCard({
       {!isConnected ? (
         <button
           onClick={onConnect}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-medium"
+          className="w-full border border-violet-200/30 bg-violet-500 px-4 py-3.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(77,68,204,0.22)] transition-colors hover:bg-violet-400"
         >
           Connect Wallet
         </button>
       ) : (
         <>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs text-slate-400 block">From</label>
-            {direction === 'toArc' && evmBalanceDisplay && (
-              <span className="text-xs text-slate-500">Balance: {parseFloat(evmBalanceDisplay).toFixed(2)} USDC</span>
+          <section className="arc-bridge-card__section">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-[0.13em] text-slate-400">From</p>
+              {sourceBalance && <span className="text-xs text-slate-400">Balance: {parseFloat(sourceBalance).toFixed(2)} USDC</span>}
+            </div>
+            {direction === 'toArc' ? (
+              <ChainSelector chains={chains} value={selectedEvmChainId} onChange={onEvmChainChange} className="mb-3 rounded-xl" />
+            ) : (
+              <ChainSelector label="Arc Testnet" className="mb-3 rounded-xl" />
             )}
-            {direction === 'fromArc' && arcBalanceDisplay && (
-              <span className="text-xs text-slate-500">Balance: {parseFloat(arcBalanceDisplay).toFixed(2)} USDC</span>
-            )}
-          </div>
-          {direction === 'toArc' ? (
-            <ChainSelector chains={chains} value={selectedEvmChainId} onChange={onEvmChainChange} />
-          ) : (
-            <ChainSelector label="Arc Testnet" />
-          )}
+            <AmountInput amount={amount} feePercent={feePercent} onChange={onAmountChange} />
+          </section>
 
-          <div className="flex justify-center my-1">
+          <div className="relative z-10 -my-3 flex justify-center">
             <button
               onClick={onDirectionToggle}
               title="Swap direction"
-              className="bg-slate-700 hover:bg-slate-600 text-white w-9 h-9 rounded-full flex items-center justify-center text-lg"
+              className="flex size-11 items-center justify-center rounded-full border border-violet-200/20 bg-[#171e3a] text-violet-100 shadow-[0_8px_18px_rgba(0,0,0,0.22)] transition-colors hover:border-violet-200/40 hover:bg-[#202950]"
             >
-              ⇅
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5 fill-none stroke-current" strokeWidth="1.8">
+                <path d="M7 8h11M15 4l4 4-4 4M17 16H6M9 12l-4 4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           </div>
 
-          <label className="text-xs text-slate-400 block mb-1 mt-2">To</label>
-          {direction === 'fromArc' ? (
-            <ChainSelector chains={chains} value={selectedEvmChainId} onChange={onEvmChainChange} className="mb-4" />
-          ) : (
-            <ChainSelector label="Arc Testnet (your wallet)" className="mb-4" />
-          )}
+          <section className="arc-bridge-card__section pt-6">
+            <p className="mb-2 text-xs font-medium uppercase tracking-[0.13em] text-slate-400">To</p>
+            {direction === 'fromArc' ? (
+              <ChainSelector chains={chains} value={selectedEvmChainId} onChange={onEvmChainChange} className="rounded-xl" />
+            ) : (
+              <ChainSelector label="Arc Testnet (your wallet)" className="rounded-xl" />
+            )}
+          </section>
 
-          <AmountInput amount={amount} feePercent={feePercent} onChange={onAmountChange} />
+          <div className="mt-3 flex items-center justify-between border-t border-white/[0.08] pt-3 text-xs">
+            <span className="text-slate-400">3% bridge fee</span>
+            <span className="font-medium text-slate-300">{fromLabel} → {toLabel}</span>
+          </div>
 
           <button
             onClick={onBridge}
             disabled={status === 'bridging' || status === 'switching'}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white py-3 rounded-lg font-medium mb-3"
+            className="mt-4 w-full border border-violet-200/30 bg-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(77,68,204,0.22)] transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {status === 'bridging'
               ? 'Bridging...'
               : status === 'switching'
               ? 'Switching network...'
-              : `Bridge ${fromLabel} → ${toLabel}`}
+              : 'Bridge USDC'}
           </button>
 
           <TransactionStatus status={status} explorerUrl={explorerUrl} errorMsg={errorMsg} />
-          <Footer onDisconnect={onDisconnect} />
+          <WalletDisconnect onDisconnect={onDisconnect} />
         </>
       )}
-    </>
+    </div>
   )
 }
 

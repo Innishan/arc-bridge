@@ -17,6 +17,7 @@ import Navbar from './components/Navbar'
 import BridgeCard from './components/BridgeCard'
 import Stats from './components/Stats'
 import Hero from './components/Hero'
+import Footer from './components/Footer'
 
 type Status = 'idle' | 'switching' | 'bridging' | 'success' | 'error'
 type Direction = 'toArc' | 'fromArc'
@@ -235,6 +236,7 @@ function App() {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   )
 }
