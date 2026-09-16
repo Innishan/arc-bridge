@@ -2,29 +2,30 @@ type NavbarProps = {
   isConnected: boolean
   address?: string
   onConnect: () => void
+  activePage?: 'bridge' | 'analytics' | 'docs'
 }
 
-function Navbar({ isConnected, address, onConnect }: NavbarProps) {
+function Navbar({ isConnected, address, onConnect, activePage = 'bridge' }: NavbarProps) {
   return (
     <header className="arc-navbar w-full border-b border-white/[0.09] bg-slate-950/20 backdrop-blur-xl">
       <div className="mx-auto flex min-h-18 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <a href="#bridge" className="group flex shrink-0 items-center gap-2.5 rounded-lg py-2 focus-visible:outline-none">
+        <a href="/" className="group flex shrink-0 items-center gap-2.5 rounded-lg py-2 focus-visible:outline-none">
           <img src={arcBridgeLogo} alt="" className="h-7 w-auto object-contain sm:h-8" />
           <span className="text-[0.98rem] font-semibold tracking-[-0.04em] text-white">ArcBridge</span>
         </a>
 
         <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
           <a
-            href="#bridge"
-            aria-current="page"
-            className="rounded-lg bg-violet-300/[0.1] px-3 py-2 text-sm font-medium text-violet-100 transition-colors hover:bg-violet-300/[0.14]"
+            href="/"
+            aria-current={activePage === 'bridge' ? 'page' : undefined}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-violet-300/[0.14] ${activePage === 'bridge' ? 'bg-violet-300/[0.1] text-violet-100' : 'text-slate-400'}`}
           >
             Bridge
           </a>
-          <a href="#analytics" className="rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/[0.05] hover:text-slate-100">
+          <a href="/analytics" aria-current={activePage === 'analytics' ? 'page' : undefined} className={`rounded-lg px-3 py-2 text-sm font-medium hover:bg-white/[0.05] hover:text-slate-100 ${activePage === 'analytics' ? 'bg-violet-300/[0.1] text-violet-100' : 'text-slate-400'}`}>
             Analytics
           </a>
-          <a href="#docs" className="rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/[0.05] hover:text-slate-100">
+          <a href="/docs" aria-current={activePage === 'docs' ? 'page' : undefined} className={`rounded-lg px-3 py-2 text-sm font-medium hover:bg-white/[0.05] hover:text-slate-100 ${activePage === 'docs' ? 'bg-violet-300/[0.1] text-violet-100' : 'text-slate-400'}`}>
             Docs
           </a>
         </nav>
@@ -38,13 +39,13 @@ function Navbar({ isConnected, address, onConnect }: NavbarProps) {
               </svg>
             </summary>
             <nav aria-label="Mobile navigation" className="absolute right-0 top-[calc(100%+0.6rem)] z-20 w-40 rounded-xl border border-white/10 bg-[#121a31]/95 p-1.5 shadow-2xl backdrop-blur-xl">
-              <a href="#bridge" aria-current="page" className="block rounded-lg bg-violet-300/[0.1] px-3 py-2 text-sm font-medium text-violet-100">
+              <a href="/" aria-current={activePage === 'bridge' ? 'page' : undefined} className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/[0.06]">
                 Bridge
               </a>
-              <a href="#analytics" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/[0.06]">
+              <a href="/analytics" aria-current={activePage === 'analytics' ? 'page' : undefined} className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/[0.06]">
                 Analytics
               </a>
-              <a href="#docs" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/[0.06]">
+              <a href="/docs" aria-current={activePage === 'docs' ? 'page' : undefined} className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/[0.06]">
                 Docs
               </a>
             </nav>

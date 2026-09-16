@@ -2,9 +2,10 @@ type TransactionStatusProps = {
   status: 'idle' | 'switching' | 'bridging' | 'success' | 'error'
   explorerUrl: string
   errorMsg: string
+  analyticsWarning: string
 }
 
-function TransactionStatus({ status, explorerUrl, errorMsg }: TransactionStatusProps) {
+function TransactionStatus({ status, explorerUrl, errorMsg, analyticsWarning }: TransactionStatusProps) {
   return (
     <>
       {status === 'success' && (
@@ -18,6 +19,7 @@ function TransactionStatus({ status, explorerUrl, errorMsg }: TransactionStatusP
         </div>
       )}
       {status === 'error' && <div className="mt-4 border border-red-300/15 bg-red-300/[0.07] px-3.5 py-3 text-sm leading-5 text-red-200">{errorMsg}</div>}
+      {status === 'success' && analyticsWarning && <div className="mt-3 border border-amber-200/15 bg-amber-300/[0.07] px-3.5 py-3 text-sm leading-5 text-amber-100">{analyticsWarning}</div>}
     </>
   )
 }

@@ -3,40 +3,35 @@ import {
   useAccount,
   useConnect,
   useDisconnect,
-  useConnectorClient,
   useSwitchChain,
   useBalance,
   useReadContract,
 } from 'wagmi'
-import { formatUnits } from 'viem'
-import { baseSepolia, arbitrumSepolia, sepolia } from 'wagmi/chains'
-import { arcTestnet } from './wagmi'
+import { formatUnits, type EIP1193Provider } from 'viem'
 import { BridgeKit } from '@circle-fin/bridge-kit'
 import { createAdapterFromProvider } from '@circle-fin/adapter-viem-v2'
+import {
+  activeBridgeConfig,
+  bridgeEnvironment,
+  productionAppKit,
+  TESTNET_BRIDGE,
+  type SupportedEvmChain,
+} from './config/bridge'
+import { productionDeveloperFees } from './config/fees'
+import { BridgeChain } from '@circle-fin/app-kit'
 import Navbar from './components/Navbar'
 import BridgeCard from './components/BridgeCard'
 import Stats from './components/Stats'
 import Hero from './components/Hero'
 import Footer from './components/Footer'
+import AnalyticsPage from './pages/AnalyticsPage'
+import DocsPage from './pages/DocsPage'
+import { getAnalytics, submitBridgeAnalytics } from './services/analytics'
 
 type Status = 'idle' | 'switching' | 'bridging' | 'success' | 'error'
 type Direction = 'toArc' | 'fromArc'
+type Mode = 'bridge' | 'swap'
 
-const BACKEND_URL = 'https://arc-bridge-backend.onrender.com'
-const FEE_PERCENT = 0.03
-const FEE_RECIPIENT = '0x3fa6CD6A58D9A3F2f0159f1BCA3b5f6cB9b9a7c9'
-
-const EVM_CHAINS = [
-  { id: baseSepolia.id, label: 'Base Sepolia', bridgeKitName: 'Base_Sepolia' },
-  { id: arbitrumSepolia.id, label: 'Arbitrum Sepolia', bridgeKitName: 'Arbitrum_Sepolia' },
-  { id: sepolia.id, label: 'Ethereum Sepolia', bridgeKitName: 'Ethereum_Sepolia' },
-]
-const USDC_ADDRESSES: Record<number, `0x${string}`> = {
-  [baseSepolia.id]: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-  [arbitrumSepolia.id]: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-  [sepolia.id]: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
-  [arcTestnet.id]: '0x3600000000000000000000000000000000000000',
-}
 const ERC20_ABI = [
   {
     name: 'balanceOf',
@@ -51,48 +46,58 @@ function App() {
   const { address, isConnected, chainId, connector } = useAccount()
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
-  const { data: client } = useConnectorClient()
   const { switchChainAsync } = useSwitchChain()
 
+  const page = window.location.pathname === '/analytics' ? 'analytics' : window.location.pathname === '/docs' ? 'docs' : 'bridge'
+
   const [direction, setDirection] = useState<Direction>('toArc')
-  const [selectedEvmChainId, setSelectedEvmChainId] = useState<number>(baseSepolia.id)
+  const [mode, setMode] = useState<Mode>('bridge')
+  const [selectedEvmChainId, setSelectedEvmChainId] = useState<number>(() => activeBridgeConfig.chains[0]?.id ?? 0)
   const [amount, setAmount] = useState('1.00')
   const [status, setStatus] = useState<Status>('idle')
   const [explorerUrl, setExplorerUrl] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [totalVolume, setTotalVolume] = useState<number | null>(null)
+  const [analyticsWarning, setAnalyticsWarning] = useState('')
 
-  const selectedEvmChain = EVM_CHAINS.find((c) => c.id === selectedEvmChainId)!
+  const bridgeEnabled = true
+  const evmChains = activeBridgeConfig.chains as readonly SupportedEvmChain[]
+  const selectedEvmChain = evmChains.find((c) => c.id === selectedEvmChainId)
+  const arcChainId = activeBridgeConfig.arc.id
 
   // Which chain the wallet needs to be connected to, based on direction
-  const requiredChainId = direction === 'toArc' ? selectedEvmChainId : arcTestnet.id
+  const requiredChainId = direction === 'toArc' ? selectedEvmChainId : arcChainId
   const { data: evmBalanceRaw } = useReadContract({
-    address: USDC_ADDRESSES[selectedEvmChainId],
+    address: selectedEvmChain?.usdcAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     chainId: selectedEvmChainId,
-    query: { enabled: !!address },
+    query: { enabled: !!address && !!selectedEvmChain },
   })
 
   // Arc's native gas currency IS USDC, so its normal wallet balance already is the USDC balance
   const { data: arcNativeBalance } = useBalance({
     address,
-    chainId: arcTestnet.id,
+    chainId: arcChainId,
+    query: { enabled: !!address },
   })
 
   const evmBalanceDisplay = evmBalanceRaw !== undefined ? formatUnits(evmBalanceRaw as bigint, 6) : null
   const arcBalanceDisplay = arcNativeBalance ? formatUnits(arcNativeBalance.value, arcNativeBalance.decimals) : null
 
-  const sourceBridgeKitName = direction === 'toArc' ? selectedEvmChain.bridgeKitName : 'Arc_Testnet'
-  const destBridgeKitName = direction === 'toArc' ? 'Arc_Testnet' : selectedEvmChain.bridgeKitName
+  const sourceBridgeKitName = direction === 'toArc' ? selectedEvmChain?.bridgeKitName : activeBridgeConfig.arc.bridgeKitName
+  const destBridgeKitName = direction === 'toArc' ? activeBridgeConfig.arc.bridgeKitName : selectedEvmChain?.bridgeKitName
   
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/volume`)
-      .then((r) => r.json())
+    getAnalytics(bridgeEnvironment)
       .then((data) => setTotalVolume(data.total))
       .catch(() => setTotalVolume(null))
   }, [])
+
+  useEffect(() => {
+    if (!selectedEvmChain && evmChains[0]) setSelectedEvmChainId(evmChains[0].id)
+  }, [evmChains, selectedEvmChain])
 
   const ensureCorrectChain = async () => {
     if (isConnected && chainId !== requiredChainId) {
@@ -105,7 +110,7 @@ function App() {
   const handleDirectionToggle = async () => {
     const newDirection: Direction = direction === 'toArc' ? 'fromArc' : 'toArc'
     setDirection(newDirection)
-    const newRequiredChainId = newDirection === 'toArc' ? selectedEvmChainId : arcTestnet.id
+    const newRequiredChainId = newDirection === 'toArc' ? selectedEvmChainId : arcChainId
     if (isConnected && chainId !== newRequiredChainId) {
       try {
         setStatus('switching')
@@ -133,9 +138,10 @@ function App() {
   }
 
   const handleBridge = async () => {
-    if (!client || !address) return
+    if (!selectedEvmChain || !address) return
     setStatus('bridging')
     setErrorMsg('')
+    setAnalyticsWarning('')
 
     try {
       await ensureCorrectChain()
@@ -144,23 +150,25 @@ function App() {
       if (!provider) throw new Error('Could not get wallet provider')
 
       const adapter = await createAdapterFromProvider({
-        provider: provider as any,
+        provider: provider as EIP1193Provider,
       })
-      const kit = new BridgeKit()
-
-      const feeAmount = (parseFloat(amount) * FEE_PERCENT).toFixed(2)
-
-      const result = await kit.bridge({
-        from: { adapter, chain: sourceBridgeKitName as any },
-        to: { adapter, chain: destBridgeKitName as any },
-        amount,
-        config: {
-          customFee: {
-            value: feeAmount,
-            recipientAddress: FEE_RECIPIENT,
-          },
-        },
-      })
+      const result = bridgeEnvironment === 'testnet'
+        ? await new BridgeKit().bridge({
+            from: { adapter, chain: sourceBridgeKitName as any },
+            to: { adapter, chain: destBridgeKitName as any },
+            amount,
+            config: {
+              customFee: {
+                value: (parseFloat(amount) * TESTNET_BRIDGE.customFee.percent).toFixed(2),
+                recipientAddress: TESTNET_BRIDGE.customFee.recipient,
+              },
+            },
+          })
+        : await productionAppKit.bridge({
+            from: { adapter, chain: sourceBridgeKitName as BridgeChain },
+            to: { adapter, chain: destBridgeKitName as BridgeChain },
+            amount,
+          })
 
       if (result.state === 'error') {
         setStatus('error')
@@ -178,16 +186,20 @@ function App() {
 
       const txHash = burnStep?.txHash
       if (txHash) {
-        fetch(`${BACKEND_URL}/api/bridges`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chain: sourceBridgeKitName, txHash, amount }),
-        })
-          .then((r) => r.json())
+        const analyticsSubmission = bridgeEnvironment === 'mainnet'
+          ? {
+              environment: 'mainnet' as const,
+              sourceChainId: direction === 'toArc' ? selectedEvmChain.id : arcChainId,
+              destinationChainId: direction === 'toArc' ? arcChainId : selectedEvmChain.id,
+              txHash,
+            }
+          : { environment: 'testnet' as const, chain: sourceBridgeKitName!, txHash }
+
+        submitBridgeAnalytics(analyticsSubmission)
           .then((data) => {
-            if (data.total !== undefined) setTotalVolume(data.total)
+            setTotalVolume(data.total)
           })
-          .catch(() => {})
+          .catch(() => setAnalyticsWarning('Your bridge was submitted, but analytics could not verify it yet.'))
       }
     } catch (err: any) {
       setStatus('error')
@@ -201,31 +213,42 @@ function App() {
     }
   }
 
-  const fromLabel = direction === 'toArc' ? selectedEvmChain.label : 'Arc Testnet'
-  const toLabel = direction === 'toArc' ? 'Arc Testnet' : selectedEvmChain.label
+  const arcLabel = activeBridgeConfig.arc.label
+  const fromLabel = direction === 'toArc' ? selectedEvmChain?.label ?? arcLabel : arcLabel
+  const toLabel = direction === 'toArc' ? arcLabel : selectedEvmChain?.label ?? arcLabel
+
+  if (page === 'analytics') return <AnalyticsPage isConnected={isConnected} address={address} onConnect={() => connect({ connector: connectors[0] })} />
+  if (page === 'docs') return <DocsPage isConnected={isConnected} address={address} onConnect={() => connect({ connector: connectors[0] })} />
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col p-0">
-      <Navbar isConnected={isConnected} address={address} onConnect={() => connect({ connector: connectors[0] })} />
+      <Navbar isConnected={isConnected} address={address} onConnect={() => connect({ connector: connectors[0] })} activePage="bridge" />
       <main className="flex flex-1 flex-col">
-        <Hero />
+        <Hero environment={bridgeEnvironment} networks={bridgeEnabled ? [arcLabel, ...evmChains.map((chain) => chain.label)] : []} />
         <section id="bridge" className="bridge-main flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl">
             <Stats totalVolume={totalVolume} />
             <BridgeCard
               isConnected={isConnected}
-              chains={EVM_CHAINS}
+              chains={evmChains}
               direction={direction}
               selectedEvmChainId={selectedEvmChainId}
               amount={amount}
-              feePercent={FEE_PERCENT}
+              feePercent={bridgeEnvironment === 'testnet' ? TESTNET_BRIDGE.customFee.percent : productionDeveloperFees.bridge.basisPoints / 10_000}
               status={status}
               explorerUrl={explorerUrl}
               errorMsg={errorMsg}
+              analyticsWarning={analyticsWarning}
               fromLabel={fromLabel}
               toLabel={toLabel}
               evmBalanceDisplay={evmBalanceDisplay}
               arcBalanceDisplay={arcBalanceDisplay}
+              bridgeEnabled={bridgeEnabled}
+              showTestnetFaucet={bridgeEnvironment === 'testnet'}
+              unavailableReason=""
+              arcLabel={arcLabel}
+              mode={mode}
+              onModeChange={setMode}
               onConnect={() => connect({ connector: connectors[0] })}
               onEvmChainChange={direction === 'toArc' ? handleEvmChainChange : setSelectedEvmChainId}
               onDirectionToggle={handleDirectionToggle}

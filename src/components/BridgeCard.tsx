@@ -2,9 +2,11 @@ import AmountInput from './AmountInput'
 import ChainSelector from './ChainSelector'
 import TransactionStatus from './TransactionStatus'
 import WalletDisconnect from './WalletDisconnect'
+import SwapCard from './SwapCard'
 
 type Status = 'idle' | 'switching' | 'bridging' | 'success' | 'error'
 type Direction = 'toArc' | 'fromArc'
+type Mode = 'bridge' | 'swap'
 
 type Chain = {
   id: number
@@ -13,7 +15,7 @@ type Chain = {
 
 type BridgeCardProps = {
   isConnected: boolean
-  chains: Chain[]
+  chains: readonly Chain[]
   direction: Direction
   selectedEvmChainId: number
   amount: string
@@ -21,10 +23,17 @@ type BridgeCardProps = {
   status: Status
   explorerUrl: string
   errorMsg: string
+  analyticsWarning: string
   fromLabel: string
   toLabel: string
   evmBalanceDisplay: string | null
   arcBalanceDisplay: string | null
+  bridgeEnabled: boolean
+  showTestnetFaucet: boolean
+  unavailableReason: string
+  arcLabel: string
+  mode: Mode
+  onModeChange: (mode: Mode) => void
   onConnect: () => void
   onEvmChainChange: (chainId: number) => void
   onDirectionToggle: () => void
@@ -43,10 +52,17 @@ function BridgeCard({
   status,
   explorerUrl,
   errorMsg,
+  analyticsWarning,
   fromLabel,
   toLabel,
   evmBalanceDisplay,
   arcBalanceDisplay,
+  bridgeEnabled,
+  showTestnetFaucet,
+  unavailableReason,
+  arcLabel,
+  mode,
+  onModeChange,
   onConnect,
   onEvmChainChange,
   onDirectionToggle,
@@ -54,6 +70,10 @@ function BridgeCard({
   onBridge,
   onDisconnect,
 }: BridgeCardProps) {
+  if (mode === 'swap') {
+    return <SwapCard onBridgeMode={() => onModeChange('bridge')} />
+  }
+
   const sourceBalance = direction === 'toArc' ? evmBalanceDisplay : arcBalanceDisplay
 
   return (
@@ -71,16 +91,28 @@ function BridgeCard({
         </span>
       </div>
 
-      <a
-        href="https://faucet.circle.com/"
-        target="_blank"
-        rel="noreferrer"
-        className="mb-4 block text-xs text-violet-300 underline decoration-violet-300/35 underline-offset-3 transition-colors hover:text-violet-100"
-      >
-        Need testnet USDC? Get some from Circle's faucet →
-      </a>
+      <div className="mb-4 grid grid-cols-2 rounded-lg border border-white/[0.09] bg-white/[0.025] p-1 text-xs font-medium">
+        <button onClick={() => onModeChange('bridge')} className="rounded-md bg-violet-400/[0.16] px-3 py-2 text-violet-100">Bridge</button>
+        <button onClick={() => onModeChange('swap')} className="rounded-md px-3 py-2 text-slate-400 hover:text-slate-100">Swap</button>
+      </div>
 
-      {!isConnected ? (
+      {!bridgeEnabled && (
+        <div className="mb-4 border border-amber-200/15 bg-amber-300/[0.07] px-3.5 py-3 text-sm leading-5 text-amber-100">
+          <span className="font-medium">Mainnet route unavailable.</span> {unavailableReason}
+        </div>
+      )}
+
+      {showTestnetFaucet && (
+        <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer" className="mb-4 block text-xs text-violet-300 underline decoration-violet-300/35 underline-offset-3 transition-colors hover:text-violet-100">
+          Need testnet USDC? Get some from Circle's faucet →
+        </a>
+      )}
+
+      {!bridgeEnabled ? (
+        <div className="border border-white/[0.09] bg-white/[0.025] px-3.5 py-3 text-sm leading-5 text-slate-400">
+          {arcLabel} is the intended destination. No wallet transaction can be started from this screen yet.
+        </div>
+      ) : !isConnected ? (
         <button
           onClick={onConnect}
           className="w-full border border-violet-200/30 bg-violet-500 px-4 py-3.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(77,68,204,0.22)] transition-colors hover:bg-violet-400"
@@ -97,7 +129,7 @@ function BridgeCard({
             {direction === 'toArc' ? (
               <ChainSelector chains={chains} value={selectedEvmChainId} onChange={onEvmChainChange} className="mb-3 rounded-xl" />
             ) : (
-              <ChainSelector label="Arc Testnet" className="mb-3 rounded-xl" />
+              <ChainSelector label={arcLabel} className="mb-3 rounded-xl" />
             )}
             <AmountInput amount={amount} feePercent={feePercent} onChange={onAmountChange} />
           </section>
@@ -119,12 +151,12 @@ function BridgeCard({
             {direction === 'fromArc' ? (
               <ChainSelector chains={chains} value={selectedEvmChainId} onChange={onEvmChainChange} className="rounded-xl" />
             ) : (
-              <ChainSelector label="Arc Testnet (your wallet)" className="rounded-xl" />
+              <ChainSelector label={`${arcLabel} (your wallet)`} className="rounded-xl" />
             )}
           </section>
 
           <div className="mt-3 flex items-center justify-between border-t border-white/[0.08] pt-3 text-xs">
-            <span className="text-slate-400">3% bridge fee</span>
+            <span className="text-slate-400">{feePercent > 0 ? `${feePercent * 100}% bridge fee` : 'No ArcBridge developer fee'}</span>
             <span className="font-medium text-slate-300">{fromLabel} → {toLabel}</span>
           </div>
 
@@ -140,7 +172,7 @@ function BridgeCard({
               : 'Bridge USDC'}
           </button>
 
-          <TransactionStatus status={status} explorerUrl={explorerUrl} errorMsg={errorMsg} />
+          <TransactionStatus status={status} explorerUrl={explorerUrl} errorMsg={errorMsg} analyticsWarning={analyticsWarning} />
           <WalletDisconnect onDisconnect={onDisconnect} />
         </>
       )}

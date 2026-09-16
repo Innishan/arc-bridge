@@ -1,7 +1,8 @@
 import { http, createConfig } from 'wagmi'
 import { baseSepolia, arbitrumSepolia, sepolia } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
-import { defineChain } from 'viem'
+import { defineChain, type Chain } from 'viem'
+import { MAINNET_WAGMI_CHAINS } from './config/bridge'
 
 export const arcTestnet = defineChain({
   id: 5042002,
@@ -12,13 +13,12 @@ export const arcTestnet = defineChain({
   testnet: true,
 })
 
+// Mainnet chains come from App Kit's installed bridge registry. Testnet
+// remains the explicit legacy Bridge Kit set below.
+const configuredChains = [arcTestnet, baseSepolia, arbitrumSepolia, sepolia, ...MAINNET_WAGMI_CHAINS] as [Chain, ...Chain[]]
+
 export const config = createConfig({
-  chains: [baseSepolia, arbitrumSepolia, sepolia, arcTestnet],
+  chains: configuredChains,
   connectors: [injected()],
-  transports: {
-    [baseSepolia.id]: http(),
-    [arbitrumSepolia.id]: http(),
-    [sepolia.id]: http(),
-    [arcTestnet.id]: http(),
-  },
+  transports: Object.fromEntries(configuredChains.map((chain) => [chain.id, http()])),
 })

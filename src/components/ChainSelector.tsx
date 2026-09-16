@@ -4,7 +4,7 @@ type Chain = {
 }
 
 type ChainSelectorProps = {
-  chains?: Chain[]
+  chains?: readonly Chain[]
   value?: number
   onChange?: (chainId: number) => void
   label?: string

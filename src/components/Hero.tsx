@@ -1,15 +1,18 @@
-const supportedNetworks = ['Arc Testnet', 'Base Sepolia', 'Arbitrum Sepolia', 'Ethereum Sepolia']
+type HeroProps = {
+  environment: 'mainnet' | 'testnet'
+  networks: string[]
+}
 
-function Hero() {
+function Hero({ environment, networks }: HeroProps) {
   return (
     <section className="arc-hero" aria-labelledby="hero-title">
       <div className="arc-hero__copy">
         <p className="arc-hero__eyebrow">Arc ecosystem</p>
         <h1 id="hero-title" className="arc-hero__title">
-          Move USDC across the <span>Arc ecosystem.</span>
+          Move assets across the <span>Arc ecosystem.</span>
         </h1>
         <p className="arc-hero__description">
-          Cross-chain USDC infrastructure connecting Arc with supported EVM testnets.
+          Cross-chain infrastructure connecting Arc with supported networks.
         </p>
         <a href="#bridge" className="arc-hero__cta">
           Start Bridging
@@ -24,9 +27,10 @@ function Hero() {
           <span className="arc-hero__orb-core">USDC</span>
         </div>
         <div className="arc-hero__network-content">
-          <p className="arc-hero__network-label">Supported testnets</p>
+          <p className="arc-hero__network-label">{environment === 'mainnet' ? 'Supported networks' : 'Supported testnets'}</p>
           <ul className="arc-hero__network-list" aria-label="Supported networks">
-            {supportedNetworks.map((network) => (
+            {networks.length === 0 && <li>No production bridge routes enabled</li>}
+            {networks.map((network) => (
               <li key={network}>{network}</li>
             ))}
           </ul>

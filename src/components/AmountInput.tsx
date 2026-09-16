@@ -25,7 +25,9 @@ function AmountInput({ amount, feePercent, onChange }: AmountInputProps) {
         <span className="text-sm font-semibold text-slate-300">USDC</span>
       </div>
       <p className="mt-2 text-xs leading-5 text-slate-400">
-        + {(parseFloat(amount || '0') * feePercent).toFixed(2)} USDC fee (3%) · Total debit:{' '}
+        {feePercent > 0
+          ? <>+ {(parseFloat(amount || '0') * feePercent).toFixed(2)} USDC fee ({feePercent * 100}%) · Total debit: </>
+          : <>No ArcBridge developer fee configured · Total debit: </>}
         <span className="font-medium text-slate-200">{(parseFloat(amount || '0') * (1 + feePercent)).toFixed(2)} USDC</span>
       </p>
     </div>
