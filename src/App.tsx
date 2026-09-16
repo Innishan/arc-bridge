@@ -147,9 +147,14 @@ function App() {
       await ensureCorrectChain()
 
       const provider = await connector?.getProvider()
-      if (!provider) throw new Error('Could not get wallet provider')
 
-      const accounts = await provider.request({
+      if (!provider) {
+        throw new Error('Could not get wallet provider')
+      }
+
+      const walletProvider = provider as EIP1193Provider
+
+      const accounts = await walletProvider.request({
         method: 'eth_requestAccounts',
       }) as string[]
 
@@ -162,8 +167,9 @@ function App() {
       }
 
       const adapter = await createAdapterFromProvider({
-        provider: provider as EIP1193Provider,
+        provider: walletProvider,
       })
+
       const result = bridgeEnvironment === 'testnet'
         ? await new BridgeKit().bridge({
             from: { adapter, chain: sourceBridgeKitName as any },
