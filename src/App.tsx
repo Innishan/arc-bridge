@@ -149,6 +149,18 @@ function App() {
       const provider = await connector?.getProvider()
       if (!provider) throw new Error('Could not get wallet provider')
 
+      const accounts = await provider.request({
+        method: 'eth_requestAccounts',
+      }) as string[]
+
+      if (!accounts.length) {
+        throw new Error('Please unlock MetaMask and connect your wallet.')
+      }
+
+      if (address && accounts[0].toLowerCase() !== address.toLowerCase()) {
+        throw new Error('The connected wallet account changed. Please reconnect your wallet.')
+      }
+
       const adapter = await createAdapterFromProvider({
         provider: provider as EIP1193Provider,
       })
