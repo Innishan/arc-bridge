@@ -48,7 +48,11 @@ function App() {
   const { disconnect } = useDisconnect()
   const { switchChainAsync } = useSwitchChain()
 
-  const page = window.location.pathname === '/analytics' ? 'analytics' : window.location.pathname === '/docs' ? 'docs' : 'bridge'
+  const getPage = () => {
+    const path = window.location.hash.replace(/^#/, '') || window.location.pathname
+    return path === '/analytics' || path === 'analytics' ? 'analytics' : path === '/docs' || path === 'docs' ? 'docs' : 'bridge'
+  }
+  const [page, setPage] = useState(getPage)
 
   const [direction, setDirection] = useState<Direction>('toArc')
   const [mode, setMode] = useState<Mode>('bridge')
@@ -93,6 +97,12 @@ function App() {
     getAnalytics(bridgeEnvironment)
       .then((data) => setTotalVolume(data.total))
       .catch(() => setTotalVolume(null))
+  }, [])
+
+  useEffect(() => {
+    const handleHashChange = () => setPage(getPage())
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
   useEffect(() => {
@@ -184,13 +194,20 @@ function App() {
           })
         : await productionAppKit.bridge({
             from: { adapter, chain: sourceBridgeKitName as BridgeChain },
-            to: { adapter, chain: destBridgeKitName as BridgeChain },
+            // Arc's installed CCTP configuration explicitly supports forwarding as
+            // a destination. The forwarder-only destination keeps the user's
+            // wallet out of the Arc mint; Circle's relayer submits it. Arc -> EVM
+            // continues to use the established wallet-driven destination flow.
+            to: direction === 'toArc'
+              ? { chain: destBridgeKitName as BridgeChain, recipientAddress: address, useForwarder: true }
+              : { adapter, chain: destBridgeKitName as BridgeChain },
             amount,
           })
 
       if (result.state === 'error') {
         setStatus('error')
-        setErrorMsg('Bridge failed. Check console for details.')
+        const failedStep = result.steps.find((step) => step.state === 'error')
+        setErrorMsg(failedStep?.errorMessage || 'Bridge failed. Check console for details.')
         console.error(result)
         return
       }
@@ -222,7 +239,9 @@ function App() {
     } catch (err: any) {
       setStatus('error')
       const msg = err?.message || ''
-      if (msg.includes('max fee per gas') || msg.includes('base fee')) {
+      if (err?.name === 'NETWORK_RELAYER_FORWARD_FAILED') {
+        setErrorMsg('Circle could not confirm the Arc mint. Check your Arc USDC balance before retrying; the Base burn may already be complete.')
+      } else if (msg.includes('max fee per gas') || msg.includes('base fee')) {
         setErrorMsg('Network gas price shifted — just click Bridge USDC again.')
       } else {
         setErrorMsg(msg || 'Something went wrong')

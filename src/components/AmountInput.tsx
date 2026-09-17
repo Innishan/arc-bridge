@@ -1,3 +1,5 @@
+import { formatFeeFromInputAmount } from '../config/fees'
+
 type AmountInputProps = {
   amount: string
   feePercent: number
@@ -5,6 +7,20 @@ type AmountInputProps = {
 }
 
 function AmountInput({ amount, feePercent, onChange }: AmountInputProps) {
+  const basisPoints = Math.round(feePercent * 10_000)
+  const isValidAmount = /^\d+(?:\.\d{1,6})?$/.test(amount)
+  const bridgeAmount = isValidAmount ? amount : '0'
+  const developerFee = formatFeeFromInputAmount(bridgeAmount, basisPoints)
+  const totalDebit = (() => {
+    const [whole, fraction = ''] = bridgeAmount.split('.')
+    const amountAtomic = BigInt(whole) * 1_000_000n + BigInt((fraction + '000000').slice(0, 6))
+    const feeAtomic = BigInt(developerFee.split('.')[0]) * 1_000_000n + BigInt(((developerFee.split('.')[1] ?? '') + '000000').slice(0, 6))
+    const totalAtomic = amountAtomic + feeAtomic
+    const totalWhole = totalAtomic / 1_000_000n
+    const totalFraction = (totalAtomic % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '')
+    return totalFraction ? `${totalWhole}.${totalFraction}` : totalWhole.toString()
+  })()
+
   return (
     <div className="border-t border-white/[0.08] pt-4">
       <div className="flex items-center justify-between gap-3">
@@ -24,12 +40,11 @@ function AmountInput({ amount, feePercent, onChange }: AmountInputProps) {
         />
         <span className="text-sm font-semibold text-slate-300">USDC</span>
       </div>
-      <p className="mt-2 text-xs leading-5 text-slate-400">
-        {feePercent > 0
-          ? <>+ {(parseFloat(amount || '0') * feePercent).toFixed(2)} USDC fee ({feePercent * 100}%) · Total debit: </>
-          : <>No ArcBridge developer fee configured · Total debit: </>}
-        <span className="font-medium text-slate-200">{(parseFloat(amount || '0') * (1 + feePercent)).toFixed(2)} USDC</span>
-      </p>
+      <div className="mt-2 space-y-0.5 text-xs leading-5 text-slate-400">
+        <p>Bridge amount: <span className="font-medium text-slate-200">{bridgeAmount} USDC</span></p>
+        <p>{feePercent > 0 ? <>Developer fee: <span className="font-medium text-slate-200">{developerFee} USDC ({feePercent * 100}%)</span></> : 'No ArcBridge developer fee configured'}</p>
+        <p>Total debit: <span className="font-medium text-slate-200">{totalDebit} USDC</span></p>
+      </div>
     </div>
   )
 }
