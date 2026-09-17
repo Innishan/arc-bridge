@@ -204,17 +204,16 @@ function App() {
             amount,
           })
 
-      if (result.state === 'error') {
+      if (result.state !== 'success') {
         setStatus('error')
         const failedStep = result.steps.find((step) => step.state === 'error')
-        setErrorMsg(failedStep?.errorMessage || 'Bridge failed. Check console for details.')
+        setErrorMsg(failedStep?.errorMessage || 'Bridge did not complete. Check console for details.')
         console.error(result)
         return
       }
 
-      const steps = (result as any).steps || []
-      const burnStep = steps.find((s: any) => s.name === 'burn')
-      const mintStep = steps.find((s: any) => s.name === 'mint')
+      const burnStep = result.steps.find((step) => step.name === 'burn')
+      const mintStep = result.steps.find((step) => step.name === 'mint')
 
       setExplorerUrl(mintStep?.explorerUrl || burnStep?.explorerUrl || '')
       setStatus('success')
@@ -234,7 +233,10 @@ function App() {
           .then((data) => {
             setTotalVolume(data.total)
           })
-          .catch(() => setAnalyticsWarning('Your bridge was submitted, but analytics could not verify it yet.'))
+          .catch((error) => {
+            console.warn('Bridge analytics could not be recorded.', error)
+            setAnalyticsWarning('Bridge completed. Analytics could not be recorded yet.')
+          })
       }
     } catch (err: any) {
       setStatus('error')

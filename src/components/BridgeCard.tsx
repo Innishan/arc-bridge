@@ -13,6 +13,40 @@ type Chain = {
   label: string
 }
 
+const USDC_ATOMIC_UNITS = 1_000_000n
+
+const parseUsdcAtomic = (value: string | null): bigint | null => {
+  if (!value) return null
+  const match = value.trim().match(/^(\d+)(?:\.(\d+))?$/)
+  if (!match) return null
+  const fraction = (match[2] ?? '').slice(0, 6).padEnd(6, '0')
+  return BigInt(match[1]) * USDC_ATOMIC_UNITS + BigInt(fraction)
+}
+
+const formatUsdcAtomic = (value: bigint): string => {
+  const whole = value / USDC_ATOMIC_UNITS
+  const fraction = (value % USDC_ATOMIC_UNITS).toString().padStart(6, '0').replace(/0+$/, '')
+  return fraction ? `${whole}.${fraction}` : whole.toString()
+}
+
+const calculateMaxBridgeAmount = (sourceBalance: string | null, feePercent: number): string | null => {
+  const balanceAtomic = parseUsdcAtomic(sourceBalance)
+  const basisPoints = Math.round(feePercent * 10_000)
+  if (balanceAtomic === null || !Number.isInteger(basisPoints) || basisPoints < 0) return null
+  if (basisPoints === 0) return formatUsdcAtomic(balanceAtomic)
+
+  const feeBasisPoints = BigInt(basisPoints)
+  let low = 0n
+  let high = balanceAtomic
+  while (low < high) {
+    const candidate = (low + high + 1n) / 2n
+    const totalDebit = candidate + candidate * feeBasisPoints / 10_000n
+    if (totalDebit <= balanceAtomic) low = candidate
+    else high = candidate - 1n
+  }
+  return formatUsdcAtomic(low)
+}
+
 type BridgeCardProps = {
   isConnected: boolean
   chains: readonly Chain[]
@@ -75,6 +109,7 @@ function BridgeCard({
   }
 
   const sourceBalance = direction === 'toArc' ? evmBalanceDisplay : arcBalanceDisplay
+  const maxAmount = calculateMaxBridgeAmount(sourceBalance, feePercent)
 
   return (
     <div className="arc-bridge-card">
@@ -131,7 +166,7 @@ function BridgeCard({
             ) : (
               <ChainSelector label={arcLabel} className="mb-3 rounded-xl" />
             )}
-            <AmountInput amount={amount} feePercent={feePercent} onChange={onAmountChange} />
+            <AmountInput amount={amount} feePercent={feePercent} maxAmount={maxAmount} onChange={onAmountChange} />
           </section>
 
           <div className="relative z-10 -my-3 flex justify-center">

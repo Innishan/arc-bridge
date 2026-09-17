@@ -3,10 +3,11 @@ import { formatFeeFromInputAmount } from '../config/fees'
 type AmountInputProps = {
   amount: string
   feePercent: number
+  maxAmount: string | null
   onChange: (amount: string) => void
 }
 
-function AmountInput({ amount, feePercent, onChange }: AmountInputProps) {
+function AmountInput({ amount, feePercent, maxAmount, onChange }: AmountInputProps) {
   const basisPoints = Math.round(feePercent * 10_000)
   const isValidAmount = /^\d+(?:\.\d{1,6})?$/.test(amount)
   const bridgeAmount = isValidAmount ? amount : '0'
@@ -39,6 +40,17 @@ function AmountInput({ amount, feePercent, onChange }: AmountInputProps) {
           className="min-w-0 flex-1 bg-transparent py-0.5 text-2xl font-medium tracking-[-0.05em] text-white outline-none placeholder:text-slate-600 sm:text-3xl"
         />
         <span className="text-sm font-semibold text-slate-300">USDC</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (maxAmount !== null && /^\d+(?:\.\d{1,6})?$/.test(maxAmount)) onChange(maxAmount)
+          }}
+          disabled={maxAmount === null}
+          aria-label="Use maximum USDC balance"
+          className="rounded-md border border-violet-200/15 bg-violet-400/[0.08] px-2 py-1 text-[0.65rem] font-bold tracking-wide text-violet-200 transition-colors hover:border-violet-200/30 hover:bg-violet-400/[0.14] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          MAX
+        </button>
       </div>
       <div className="mt-2 space-y-0.5 text-xs leading-5 text-slate-400">
         <p>Bridge amount: <span className="font-medium text-slate-200">{bridgeAmount} USDC</span></p>
