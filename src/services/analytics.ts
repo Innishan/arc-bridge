@@ -32,6 +32,18 @@ export type AnalyticsSnapshot = {
   recentTransfers: RecentTransfer[]
 }
 
+export type PointsSnapshot = {
+  address: string
+  points: number
+  bridgePoints: number
+  referralPoints: number
+  successfulReferrals: number
+  totalDistributed: number
+  remaining: number
+  maxPoints: number
+  programComplete: boolean
+}
+
 type MainnetSubmission = {
   environment: 'mainnet'
   sourceChainId: number
@@ -70,4 +82,17 @@ export async function submitBridgeAnalytics(submission: MainnetSubmission | Test
     body: JSON.stringify(submission),
   }))
   return payload as AnalyticsSnapshot
+}
+
+export async function getPoints(address: string, signal?: AbortSignal): Promise<PointsSnapshot> {
+  const payload = await parseResponse(await fetch(`${analyticsApiUrl}/api/points?address=${encodeURIComponent(address)}`, { signal }))
+  return payload as PointsSnapshot
+}
+
+export async function registerReferral(referrer: string, referred: string): Promise<void> {
+  await parseResponse(await fetch(`${analyticsApiUrl}/api/referrals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ referrer, referred }),
+  }))
 }

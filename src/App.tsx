@@ -22,11 +22,12 @@ import { BridgeChain } from '@circle-fin/app-kit'
 import Navbar from './components/Navbar'
 import BridgeCard from './components/BridgeCard'
 import Stats from './components/Stats'
+import PointsPanel from './components/PointsPanel'
 import Hero from './components/Hero'
 import Footer from './components/Footer'
 import AnalyticsPage from './pages/AnalyticsPage'
 import DocsPage from './pages/DocsPage'
-import { getAnalytics, submitBridgeAnalytics } from './services/analytics'
+import { getAnalytics, getPoints, registerReferral, submitBridgeAnalytics, type PointsSnapshot } from './services/analytics'
 
 type Status = 'idle' | 'switching' | 'bridging' | 'success' | 'error'
 type Direction = 'toArc' | 'fromArc'
@@ -63,6 +64,7 @@ function App() {
   const [errorMsg, setErrorMsg] = useState('')
   const [totalVolume, setTotalVolume] = useState<number | null>(null)
   const [analyticsWarning, setAnalyticsWarning] = useState('')
+  const [points, setPoints] = useState<PointsSnapshot | null>(null)
 
   const bridgeEnabled = true
   const evmChains = activeBridgeConfig.chains as readonly SupportedEvmChain[]
@@ -98,6 +100,20 @@ function App() {
       .then((data) => setTotalVolume(data.total))
       .catch(() => setTotalVolume(null))
   }, [])
+
+  useEffect(() => {
+    if (!address) {
+      setPoints(null)
+      return
+    }
+    const controller = new AbortController()
+    getPoints(address, controller.signal).then(setPoints).catch(() => setPoints(null))
+    const referrer = new URLSearchParams(window.location.search).get('ref')
+    if (referrer && referrer.toLowerCase() !== address.toLowerCase()) {
+      registerReferral(referrer, address).then(() => getPoints(address, controller.signal).then(setPoints)).catch(() => undefined)
+    }
+    return () => controller.abort()
+  }, [address])
 
   useEffect(() => {
     const handleHashChange = () => setPage(getPage())
@@ -237,6 +253,11 @@ function App() {
             console.warn('Bridge analytics could not be recorded.', error)
             setAnalyticsWarning('Bridge completed. Analytics could not be recorded yet.')
           })
+          .finally(() => {
+            if (address) {
+              getPoints(address).then(setPoints).catch(() => undefined)
+            }
+          })
       }
     } catch (err: any) {
       setStatus('error')
@@ -295,6 +316,7 @@ function App() {
               onBridge={handleBridge}
               onDisconnect={() => disconnect()}
             />
+            <PointsPanel address={address} points={points} />
           </div>
         </section>
       </main>
