@@ -181,7 +181,7 @@ function App() {
       const walletProvider = provider as EIP1193Provider
 
       const accounts = await walletProvider.request({
-        method: 'eth_requestAccounts',
+        method: 'eth_accounts',
       }) as string[]
 
       if (!accounts.length) {
