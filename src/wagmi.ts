@@ -17,8 +17,19 @@ export const arcTestnet = defineChain({
 // remains the explicit legacy Bridge Kit set below.
 const configuredChains = [arcTestnet, baseSepolia, arbitrumSepolia, sepolia, ...MAINNET_WAGMI_CHAINS] as [Chain, ...Chain[]]
 
+// Arc mainnet needs an explicit RPC URL so useReadContracts can query it
+// even when the user's wallet is on a different chain.
+const ARC_MAINNET_ID = 5042
+
 export const config = createConfig({
   chains: configuredChains,
   connectors: [injected()],
-  transports: Object.fromEntries(configuredChains.map((chain) => [chain.id, http()])),
+  transports: Object.fromEntries(
+    configuredChains.map((chain) => [
+      chain.id,
+      chain.id === ARC_MAINNET_ID
+        ? http('https://rpc.mainnet.arc.io/')
+        : http(chain.rpcUrls?.default?.http?.[0]),
+    ])
+  ),
 })

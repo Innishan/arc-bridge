@@ -17,6 +17,7 @@ import {
   TESTNET_BRIDGE,
   type SupportedEvmChain,
 } from './config/bridge'
+
 import { productionDeveloperFees } from './config/fees'
 import { BridgeChain } from '@circle-fin/app-kit'
 import Navbar from './components/Navbar'
@@ -28,6 +29,8 @@ import Footer from './components/Footer'
 import AnalyticsPage from './pages/AnalyticsPage'
 import DocsPage from './pages/DocsPage'
 import { getAnalytics, getPoints, registerReferral, submitBridgeAnalytics, type PointsSnapshot } from './services/analytics'
+import TxHistory from './components/TxHistory'
+import { appendHistory } from './utils/txHistory'
 
 type Status = 'idle' | 'switching' | 'bridging' | 'success' | 'error'
 type Direction = 'toArc' | 'fromArc'
@@ -63,8 +66,10 @@ function App() {
   const [explorerUrl, setExplorerUrl] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [totalVolume, setTotalVolume] = useState<number | null>(null)
+  const [totalCount, setTotalCount] = useState<number | null>(null)
   const [analyticsWarning, setAnalyticsWarning] = useState('')
   const [points, setPoints] = useState<PointsSnapshot | null>(null)
+  const [txHistoryKey, setTxHistoryKey] = useState(0)
 
   const bridgeEnabled = true
   const evmChains = activeBridgeConfig.chains as readonly SupportedEvmChain[]
@@ -96,14 +101,19 @@ function App() {
   const destBridgeKitName = direction === 'toArc' ? activeBridgeConfig.arc.bridgeKitName : selectedEvmChain?.bridgeKitName
   
   useEffect(() => {
-    getAnalytics(bridgeEnvironment)
-      .then((data) => setTotalVolume(data.total))
-      .catch(() => setTotalVolume(null))
+    const load = () => {
+      getAnalytics(bridgeEnvironment)
+        .then((data) => { setTotalVolume(data.total); setTotalCount(data.count) })
+        .catch(() => { setTotalVolume(null); setTotalCount(null) })
+    }
+    load()
+    const interval = setInterval(load, 30_000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
     if (!address) {
-      setPoints(null)
+      setTimeout(() => setPoints(null), 0)
       return
     }
     const controller = new AbortController()
@@ -122,7 +132,10 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!selectedEvmChain && evmChains[0]) setSelectedEvmChainId(evmChains[0].id)
+    if (!selectedEvmChain && evmChains[0]) {
+      const id = evmChains[0].id
+      setTimeout(() => setSelectedEvmChainId(id), 0)
+    }
   }, [evmChains, selectedEvmChain])
 
   const ensureCorrectChain = async () => {
@@ -168,6 +181,8 @@ function App() {
     setStatus('bridging')
     setErrorMsg('')
     setAnalyticsWarning('')
+    // eslint-disable-next-line react-hooks/purity
+    const bridgeStartTime = Date.now()
 
     try {
       await ensureCorrectChain()
@@ -198,8 +213,8 @@ function App() {
 
       const result = bridgeEnvironment === 'testnet'
         ? await new BridgeKit().bridge({
-            from: { adapter, chain: sourceBridgeKitName as any },
-            to: { adapter, chain: destBridgeKitName as any },
+            from: { adapter, chain: sourceBridgeKitName as string },
+            to: { adapter, chain: destBridgeKitName as string },
             amount,
             config: {
               customFee: {
@@ -231,8 +246,21 @@ function App() {
       const burnStep = result.steps.find((step) => step.name === 'burn')
       const mintStep = result.steps.find((step) => step.name === 'mint')
 
-      setExplorerUrl(mintStep?.explorerUrl || burnStep?.explorerUrl || '')
+      const txExplorerUrl = mintStep?.explorerUrl || burnStep?.explorerUrl || ''
+      setExplorerUrl(txExplorerUrl)
       setStatus('success')
+      appendHistory({
+        id: burnStep?.txHash ?? String(bridgeStartTime),
+        type: 'bridge',
+        timestamp: bridgeStartTime,
+        fromLabel,
+        toLabel,
+        amount,
+        asset: 'USDC',
+        explorerUrl: txExplorerUrl,
+        status: 'success',
+      })
+      setTxHistoryKey((k) => k + 1)
 
       const txHash = burnStep?.txHash
       if (txHash) {
@@ -248,6 +276,7 @@ function App() {
         submitBridgeAnalytics(analyticsSubmission)
           .then((data) => {
             setTotalVolume(data.total)
+            setTotalCount(data.count)
           })
           .catch((error) => {
             console.warn('Bridge analytics could not be recorded.', error)
@@ -259,10 +288,11 @@ function App() {
             }
           })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('error')
-      const msg = err?.message || ''
-      if (err?.name === 'NETWORK_RELAYER_FORWARD_FAILED') {
+      const errObj = err as { message?: string; name?: string }
+      const msg = errObj?.message || ''
+      if (errObj?.name === 'NETWORK_RELAYER_FORWARD_FAILED') {
         setErrorMsg('Circle could not confirm the Arc mint. Check your Arc USDC balance before retrying; the Base burn may already be complete.')
       } else if (msg.includes('max fee per gas') || msg.includes('base fee')) {
         setErrorMsg('Network gas price shifted — just click Bridge USDC again.')
@@ -287,7 +317,7 @@ function App() {
         <Hero environment={bridgeEnvironment} networks={bridgeEnabled ? [arcLabel, ...evmChains.map((chain) => chain.label)] : []} />
         <section id="bridge" className="bridge-main flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <Stats totalVolume={totalVolume} />
+            <Stats totalVolume={totalVolume} totalCount={totalCount} />
             <BridgeCard
               isConnected={isConnected}
               chains={evmChains}
@@ -317,6 +347,7 @@ function App() {
               onDisconnect={() => disconnect()}
             />
             <PointsPanel address={address} points={points} />
+            <TxHistory address={address} refreshKey={txHistoryKey} />
           </div>
         </section>
       </main>

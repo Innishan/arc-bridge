@@ -105,7 +105,13 @@ function BridgeCard({
   onDisconnect,
 }: BridgeCardProps) {
   if (mode === 'swap') {
-    return <SwapCard onBridgeMode={() => onModeChange('bridge')} />
+    return (
+      <SwapCard
+        onBridgeMode={() => onModeChange('bridge')}
+        isConnected={isConnected}
+        onConnect={onConnect}
+      />
+    )
   }
 
   const sourceBalance = direction === 'toArc' ? evmBalanceDisplay : arcBalanceDisplay
@@ -128,7 +134,7 @@ function BridgeCard({
 
       <div className="mb-4 grid grid-cols-2 rounded-lg border border-white/[0.09] bg-white/[0.025] p-1 text-xs font-medium">
         <button onClick={() => onModeChange('bridge')} className="rounded-md bg-violet-400/[0.16] px-3 py-2 text-violet-100">Bridge</button>
-        <button onClick={() => onModeChange('swap')} className="rounded-md px-3 py-2 text-slate-400 hover:text-slate-100">Swap</button>
+        <button onClick={() => onModeChange('swap')} className="rounded-md px-3 py-2 text-slate-400 hover:text-slate-100 transition-colors">Swap</button>
       </div>
 
       {!bridgeEnabled && (
