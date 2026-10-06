@@ -7,7 +7,7 @@
  * - Approve + exactInputSingle via SwapRouter02
  * - Slippage selector (default 1%), transaction history logging
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 // Inline SVG icons — no external icon library required
 const ArrowDownUp = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
@@ -90,7 +90,7 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
   const [showTokenOut,  setShowTokenOut]  = useState(false)
 
   // Debounce amount input for quote
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => setDebouncedAmount(amountIn), 600)

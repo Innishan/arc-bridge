@@ -213,8 +213,8 @@ function App() {
 
       const result = bridgeEnvironment === 'testnet'
         ? await new BridgeKit().bridge({
-            from: { adapter, chain: sourceBridgeKitName as string },
-            to: { adapter, chain: destBridgeKitName as string },
+            from: { adapter, chain: sourceBridgeKitName as BridgeChain },
+            to: { adapter, chain: destBridgeKitName as BridgeChain },
             amount,
             config: {
               customFee: {
