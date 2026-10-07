@@ -14,6 +14,10 @@ const ARC_CHAIN_ID = 5042
 const USDC_DECIMALS = 6
 const USDC_SCALE = 10n ** BigInt(USDC_DECIMALS)
 const DEFAULT_ANALYTICS_API_URL = 'https://arc-bridge-backend.onrender.com'
+const IRIS_BASE_DOMAIN = 6
+const IRIS_POLL_INTERVAL_MS = 10_000
+const IRIS_REQUEST_TIMEOUT_MS = 15_000
+const BRIDGE_FINALITY_TIMEOUT_MS = 60 * 60 * 1000
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim()
@@ -72,6 +76,121 @@ function configureProductionFeePolicy(appKit) {
       resolveFeeRecipientAddress: () => recipient,
     },
   })
+}
+
+function isTransactionHash(value) {
+  return typeof value === 'string' && /^0x[\da-f]{64}$/i.test(value)
+}
+
+function getBurnHash(result) {
+  return result?.steps?.find((step) => step.name.toLowerCase() === 'burn')?.txHash
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function fetchIrisMessage(transactionHash) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), IRIS_REQUEST_TIMEOUT_MS)
+  try {
+    const url = new URL(`https://iris-api.circle.com/v2/messages/${IRIS_BASE_DOMAIN}`)
+    url.searchParams.set('transactionHash', transactionHash)
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      const error = new Error(`Circle IRIS returned HTTP ${response.status}.`)
+      error.status = response.status
+      throw error
+    }
+    const payload = await response.json()
+    const message = payload?.messages?.[0]
+    if (!message || typeof message !== 'object') {
+      throw new Error('Circle IRIS response did not contain a message.')
+    }
+    return message
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function waitForBridgeFinality({ burnHash, arcPublicClient }) {
+  const deadline = Date.now() + BRIDGE_FINALITY_TIMEOUT_MS
+  let lastPollingError
+  let lastForwardHash
+
+  while (Date.now() < deadline) {
+    let message
+    try {
+      message = await fetchIrisMessage(burnHash)
+      lastPollingError = undefined
+    } catch (error) {
+      const status = error?.status
+      if (status && status !== 404 && status !== 429 && status < 500) throw error
+      lastPollingError = error
+      await wait(IRIS_POLL_INTERVAL_MS)
+      continue
+    }
+
+    const status = String(message.status ?? '').toLowerCase()
+    const forwardState = String(message.forwardState ?? '').toUpperCase()
+    const forwardHash = message.forwardTxHash
+    if (status === 'failed' || forwardState === 'FAILED') {
+      throw new Error(`Circle IRIS reports bridge failure (status=${status || 'unknown'}, forwardState=${forwardState || 'unknown'}).`)
+    }
+    if (isTransactionHash(forwardHash)) lastForwardHash = forwardHash
+
+    if (status === 'complete' && forwardState === 'COMPLETE' && lastForwardHash) {
+      let receipt
+      try {
+        receipt = await arcPublicClient.getTransactionReceipt({ hash: lastForwardHash })
+      } catch (error) {
+        // A newly submitted forward transaction may not be indexed by the RPC yet.
+        lastPollingError = error
+      }
+      if (receipt) {
+        if (receipt.status !== 'success') {
+          throw new Error(`Arc forwarding transaction ${lastForwardHash} reverted.`)
+        }
+        return { mintHash: lastForwardHash }
+      }
+    }
+
+    await wait(IRIS_POLL_INTERVAL_MS)
+  }
+
+  const detail = lastPollingError instanceof Error ? ` Last polling error: ${lastPollingError.message}` : ''
+  throw new Error(`Timed out waiting for Circle IRIS completion and a successful Arc forwarding receipt for ${burnHash}.${detail}`)
+}
+
+async function recordAnalyticsOnce({ burnHash, analyticsApiUrl, sourceChainId, destinationChainId, attemptedHashes }) {
+  const normalizedHash = burnHash.toLowerCase()
+  if (attemptedHashes.has(normalizedHash)) {
+    console.log('Analytics: skipped (already submitted for this burn transaction)')
+    return
+  }
+
+  // Mark before the request so an ambiguous network failure cannot trigger a duplicate POST.
+  attemptedHashes.add(normalizedHash)
+  try {
+    const response = await fetch(`${analyticsApiUrl}/api/bridges`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        environment: 'mainnet',
+        sourceChainId,
+        destinationChainId,
+        txHash: burnHash,
+      }),
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null)
+      const message = payload && typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`
+      throw new Error(message)
+    }
+    console.log('Analytics: recorded')
+  } catch (error) {
+    console.error(`Analytics: failed — ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 function readSettings() {
@@ -153,6 +272,8 @@ async function main() {
   let successful = 0
   let failed = 0
   let totalBridged = 0n
+  const analyticsAttemptedHashes = new Set()
+  const arcPublicClient = createPublicClient({ chain: arc.chain, transport: http(settings.arcRpcUrl) })
 
   for (let index = 1; index <= settings.runCount; index += 1) {
     const amount = formatUsdc(randomBigInt(settings.minAmount, settings.maxAmount))
@@ -162,51 +283,63 @@ async function main() {
     console.log('Status: bridging')
 
     try {
-      const result = await appKit.bridge({
+      let observedBurnHash
+      let resolveBurnHash
+      const burnHashPromise = new Promise((resolve) => { resolveBurnHash = resolve })
+      const onBurn = (payload) => {
+        const txHash = payload?.values?.txHash
+        if (!observedBurnHash && isTransactionHash(txHash)) {
+          observedBurnHash = txHash
+          resolveBurnHash(txHash)
+        }
+      }
+      appKit.on('bridge.burn', onBurn)
+
+      // Keep a rejection handler attached even if IRIS confirms completion first.
+      const bridgeOutcomePromise = appKit.bridge({
         from: { adapter, chain: source.chain },
         to: { chain: arc.chain, recipientAddress: account.address, useForwarder: true },
         amount,
         token: 'USDC',
-      })
+      }).then(
+        (result) => ({ result }),
+        (error) => ({ error }),
+      )
 
-      const burnHash = result.steps.find((step) => step.name.toLowerCase() === 'burn')?.txHash
-      const mintHash = result.steps.find((step) => step.name.toLowerCase() === 'mint')?.txHash
-      if (burnHash) console.log(`Burn TX: ${burnHash}`)
-      if (mintHash) console.log(`Mint TX: ${mintHash}`)
-
-      if (result.state !== 'success') {
-        const failedStep = result.steps.find((step) => step.state === 'error')
-        throw new Error(failedStep?.errorMessage || `Circle bridge operation ended with state "${result.state}".`)
+      let burnHash
+      try {
+        const firstOutcome = await Promise.race([
+          burnHashPromise.then((txHash) => ({ txHash })),
+          bridgeOutcomePromise,
+        ])
+        burnHash = firstOutcome.txHash || getBurnHash(firstOutcome.result)
+        if (!burnHash && firstOutcome.error) throw firstOutcome.error
+        if (!isTransactionHash(burnHash)) {
+          throw new Error('Circle did not expose a valid Base burn transaction hash.')
+        }
+      } finally {
+        appKit.off('bridge.burn', onBurn)
       }
+
+      if (burnHash) console.log(`Burn TX: ${burnHash}`)
+
+      const finality = await waitForBridgeFinality({ burnHash, arcPublicClient })
+      console.log(`Mint TX: ${finality.mintHash}`)
 
       successful += 1
       totalBridged += parseUsdc(amount, 'amount')
       console.log('Status: confirmed')
+      await recordAnalyticsOnce({
+        burnHash,
+        analyticsApiUrl: settings.analyticsApiUrl,
+        sourceChainId: source.chainId,
+        destinationChainId: arc.chainId,
+        attemptedHashes: analyticsAttemptedHashes,
+      })
 
-      if (burnHash) {
-        try {
-          const response = await fetch(`${settings.analyticsApiUrl}/api/bridges`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              environment: 'mainnet',
-              sourceChainId: source.chainId,
-              destinationChainId: arc.chainId,
-              txHash: burnHash,
-            }),
-          })
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            const message = payload && typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`
-            throw new Error(message)
-          }
-          console.log('Analytics: recorded')
-        } catch (error) {
-          console.error(`Analytics: failed — ${error instanceof Error ? error.message : String(error)}`)
-        }
-      } else {
-        console.log('Analytics: skipped (Circle result did not include a burn transaction hash)')
-      }
+      // IRIS completion plus a successful Arc receipt is the independent finality proof.
+      // The App Kit promise is intentionally not awaited after that proof; it may remain
+      // inside its own lifecycle polling even though the forwarding transaction is final.
     } catch (error) {
       failed += 1
       console.error(`Status: failed — ${error instanceof Error ? error.message : String(error)}`)
