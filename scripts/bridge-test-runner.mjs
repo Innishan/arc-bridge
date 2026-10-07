@@ -210,6 +210,9 @@ async function main() {
         throw new Error(`${errorMessage}${stepLabel}`)
       }
 
+      console.log(`Bridge warnings: ${result.warnings?.length ? JSON.stringify(result.warnings) : 'none reported'}`)
+      console.log(`Bridge config transferSpeed: ${result.config?.transferSpeed ?? 'not reported'}`)
+
       const burnHash = result.steps.find((step) => step.name.toLowerCase() === 'burn')?.txHash
       const mintHash = result.steps.find((step) => step.name.toLowerCase() === 'mint')?.txHash
 
