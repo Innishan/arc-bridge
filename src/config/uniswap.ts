@@ -8,7 +8,7 @@ export const ARC_CHAIN_ID = 5042
 
 export const UNISWAP_V3 = {
   /** v3 Core Factory — confirmed via SwapRouter02.factory() call */
-  factory:    '0xf0dB7b58379503491D857Db50aC9ECe64c653918' as `0x${string}`,
+  factory:    '0xf0db7b58379503491d857dB50AC9ece64c653918' as `0x${string}`,
   /** SwapRouter02 — confirmed 24KB bytecode on Arc Mainnet */
   router:     '0x53BF6B0684Ec7eF91e1387Da3D1a1769bC5A6F77' as `0x${string}`,
   /** Universal Router (v3+v4) — confirmed 24KB bytecode on Arc Mainnet */

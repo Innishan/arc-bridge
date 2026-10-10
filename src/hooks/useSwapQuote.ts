@@ -34,6 +34,46 @@ const arcClient = createPublicClient({
   transport: http(ARC_RPC_URL),
 })
 
+function describeQuoteError(error: unknown): { message: string; status?: number; code?: string | number } {
+  const visited = new Set<unknown>()
+  let current: unknown = error
+  let message = ''
+  let status: number | undefined
+  let code: string | number | undefined
+  let depth = 0
+
+  while (current && depth < 8 && !visited.has(current)) {
+    visited.add(current)
+    if (typeof current !== 'object') break
+    const details = current as Record<string, unknown>
+    const response = typeof details.response === 'object' && details.response !== null
+      ? details.response as Record<string, unknown>
+      : undefined
+
+    if (status === undefined) {
+      const candidate = details.status ?? details.statusCode ?? response?.status
+      if (typeof candidate === 'number') status = candidate
+    }
+    if (code === undefined && (typeof details.code === 'string' || typeof details.code === 'number')) {
+      code = details.code
+    }
+    if (!message) {
+      const candidate = details.shortMessage ?? details.details ?? details.message
+      if (typeof candidate === 'string' && candidate.trim()) message = candidate.trim()
+    }
+
+    current = details.cause
+    depth += 1
+  }
+
+  // Keep diagnostics useful without logging request objects, headers, or credentials.
+  message = (message || 'Unknown quote request error.')
+    .replace(/((?:api[_-]?key|authorization|private[_-]?key|access[_-]?token)\s*[:=]\s*)[^\s,;]+/gi, '$1[redacted]')
+    .slice(0, 500)
+
+  return { message, ...(status !== undefined ? { status } : {}), ...(code !== undefined ? { code } : {}) }
+}
+
 export type QuoteResult = {
   amountOut: string
   amountOutRaw: bigint
@@ -179,8 +219,11 @@ export function useSwapQuote(
       setError('')
     } catch (e) {
       if (gen !== generation.current) return
-      console.error('[useSwapQuote]', e)
-      setError('Failed to get quote. Check your connection or try again.')
+      const diagnostic = describeQuoteError(e)
+      console.error('[useSwapQuote] quote request failed', diagnostic)
+      const status = diagnostic.status !== undefined ? ` (HTTP ${diagnostic.status})` : ''
+      const code = diagnostic.code !== undefined ? ` [${diagnostic.code}]` : ''
+      setError(`Failed to get quote${status}${code}: ${diagnostic.message}`)
     } finally {
       if (gen === generation.current) setLoading(false)
     }

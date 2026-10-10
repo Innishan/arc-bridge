@@ -33,7 +33,7 @@ const RefreshCw = ({ className }: { className?: string }) => (
 import { parseUnits, formatUnits } from 'viem'
 import {
   useAccount, useSwitchChain, useBalance, useDisconnect,
-  useReadContract, useWriteContract, useWaitForTransactionReceipt,
+  useReadContract, useWriteContract, usePublicClient,
 } from 'wagmi'
 import { ARC_DEFAULT_TOKENS, ERC20_ABI, SWAP_ROUTER02_ABI, UNISWAP_V3, USDC_ERC20, type ArcToken } from '../config/uniswap'
 import { useSwapQuote } from '../hooks/useSwapQuote'
@@ -145,7 +145,7 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
   })()
 
   // ── Allowance ──────────────────────────────────────────────────────────────
-  const { data: allowanceRaw } = useReadContract({
+  const { data: allowanceRaw, refetch: refetchAllowance } = useReadContract({
     address: tokenIn.erc20,
     abi: ERC20_ABI,
     functionName: 'allowance',
@@ -162,39 +162,60 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
 
   // ── Write hooks ────────────────────────────────────────────────────────────
   const { writeContractAsync } = useWriteContract()
-  const { data: txReceipt, isLoading: txPending } = useWaitForTransactionReceipt({
-    hash: txHash || undefined,
-    chainId: ARC_CHAIN_ID,
-  })
-
-  useEffect(() => {
-    if (txReceipt && phase === 'swapping') {
-      const hash = txHash
-      const ai = amountIn
-      const ao = quote?.amountOut ?? ''
-      const ts = tokenIn.symbol
-      const to = tokenOut.symbol
-      setTimeout(() => {
-        setPhase('success')
-        appendHistory({
-          type: 'swap',
-          amountIn: ai,
-          amountOut: ao,
-          tokenIn: ts,
-          tokenOut: to,
-          txHash: hash as string,
-          explorerUrl: EXPLORER + hash,
-          timestamp: Date.now(),
-        })
-      }, 0)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [txReceipt])
+  const arcPublicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const ensureArc = useCallback(async () => {
     if (chainId !== ARC_CHAIN_ID) await switchChainAsync({ chainId: ARC_CHAIN_ID })
   }, [chainId, switchChainAsync])
+
+  const submitSwap = async (inputAmount: string, currentQuote: NonNullable<typeof quote>) => {
+    if (!address) throw new Error('Wallet disconnected before swap submission.')
+    if (!arcPublicClient) throw new Error('Arc Mainnet RPC client is unavailable.')
+
+    await ensureArc()
+    const amountInRaw = parseUnits(inputAmount, tokenIn.decimals)
+    console.info('[Swap] submitting swap on Arc Mainnet', {
+      chainId: ARC_CHAIN_ID,
+      router: UNISWAP_V3.router,
+    })
+    const hash = await writeContractAsync({
+      address: UNISWAP_V3.router,
+      abi: SWAP_ROUTER02_ABI,
+      functionName: 'exactInputSingle',
+      args: [{
+        tokenIn: tokenIn.erc20,
+        tokenOut: tokenOut.erc20,
+        fee: currentQuote.feeTier,
+        recipient: address,
+        amountIn: amountInRaw,
+        amountOutMinimum: currentQuote.amountOutMin,
+        sqrtPriceLimitX96: 0n,
+      }],
+      chainId: ARC_CHAIN_ID,
+    })
+    setTxHash(hash)
+    console.info('[Swap] transaction submitted', { hash })
+
+    const receipt = await arcPublicClient.waitForTransactionReceipt({ hash })
+    if (receipt.status !== 'success') {
+      console.error('[Swap] transaction reverted', { hash })
+      throw new Error(`Swap transaction reverted: ${hash}`)
+    }
+
+    console.info('[Swap] transaction confirmed', { hash })
+    appendHistory({
+      type: 'swap',
+      amountIn: inputAmount,
+      amountOut: currentQuote.amountOut,
+      tokenIn: tokenIn.symbol,
+      tokenOut: tokenOut.symbol,
+      txHash: hash,
+      explorerUrl: EXPLORER + hash,
+      timestamp: Date.now(),
+    })
+    setPhase('success')
+  }
 
   const handleFlip = () => {
     setTokenIn(tokenOut)
@@ -217,20 +238,46 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
 
   // ── Approve ────────────────────────────────────────────────────────────────
   const handleApprove = async () => {
-    if (!address || !amountIn) return
+    if (!address || !amountIn || !quote) return
     try {
       setPhase('approving')
       await ensureArc()
       const amount = parseUnits(amountIn, tokenIn.decimals)
-      await writeContractAsync({
+      console.info('[Swap] approval requested', {
+        chainId: ARC_CHAIN_ID,
+        token: tokenIn.erc20,
+        spender: UNISWAP_V3.router,
+        amount: amount.toString(),
+      })
+      const approvalHash = await writeContractAsync({
         address: tokenIn.erc20,
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [UNISWAP_V3.router, amount],
         chainId: ARC_CHAIN_ID,
       })
-      setPhase('idle')
+      setTxHash(approvalHash)
+      console.info('[Swap] approval transaction submitted', { hash: approvalHash })
+      if (!arcPublicClient) throw new Error('Arc Mainnet RPC client is unavailable.')
+      const receipt = await arcPublicClient.waitForTransactionReceipt({ hash: approvalHash })
+      if (receipt.status !== 'success') {
+        console.error('[Swap] approval transaction reverted', { hash: approvalHash })
+        throw new Error(`Approval transaction reverted: ${approvalHash}`)
+      }
+      console.info('[Swap] approval transaction confirmed', { hash: approvalHash })
+
+      const allowanceResult = await refetchAllowance()
+      const confirmedAllowance = allowanceResult.data as bigint | undefined
+      if (confirmedAllowance === undefined || confirmedAllowance < amount) {
+        console.error('[Swap] allowance verification failed', { chainId: ARC_CHAIN_ID })
+        throw new Error('Approval confirmed, but the updated token allowance is still insufficient.')
+      }
+      console.info('[Swap] allowance verified', { chainId: ARC_CHAIN_ID })
+      await submitSwap(amountIn, quote)
     } catch (e: unknown) {
+      console.error('[Swap] approval or follow-up swap failed', {
+        message: e instanceof Error ? e.message : 'Unknown error.',
+      })
       setPhase('error')
       setErrorMsg(e instanceof Error ? e.message : 'Approval failed.')
     }
@@ -241,27 +288,11 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
     if (!address || !quote || !amountIn) return
     try {
       setPhase('swapping')
-      await ensureArc()
-
-      const amountInRaw = parseUnits(amountIn, tokenIn.decimals)
-      const amountOutMin = quote.amountOutMin
-      const hash = await writeContractAsync({
-        address: UNISWAP_V3.router,
-        abi: SWAP_ROUTER02_ABI,
-        functionName: 'exactInputSingle',
-        args: [{
-          tokenIn:           tokenIn.erc20,
-          tokenOut:          tokenOut.erc20,
-          fee:               quote.feeTier,
-          recipient:         address,
-          amountIn:          amountInRaw,
-          amountOutMinimum:  amountOutMin,
-          sqrtPriceLimitX96: 0n,
-        }],
-        chainId: ARC_CHAIN_ID,
-      })
-      setTxHash(hash)
+      await submitSwap(amountIn, quote)
     } catch (e: unknown) {
+      console.error('[Swap] swap failed', {
+        message: e instanceof Error ? e.message : 'Unknown error.',
+      })
       setPhase('error')
       const msg = e instanceof Error ? e.message : 'Swap failed.'
       setErrorMsg(msg.includes('user rejected') ? 'Transaction rejected.' : msg)
@@ -269,7 +300,7 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
   }
 
   // ── Render helpers ─────────────────────────────────────────────────────────
-  const isLoading = phase === 'approving' || phase === 'swapping' || txPending
+  const isLoading = phase === 'approving' || phase === 'swapping'
   const onArc     = chainId === ARC_CHAIN_ID
 
   // ── Not connected ──────────────────────────────────────────────────────────
@@ -526,8 +557,8 @@ export default function SwapCard({ onBridgeMode, isConnected, onConnect }: Props
               disabled={isLoading || !quote || !amountIn || !!quoteError}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {phase === 'swapping' || txPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> {txPending ? 'Confirming…' : 'Swapping…'}</>
+              {phase === 'swapping' ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Swapping…</>
               ) : !amountIn || parseFloat(amountIn) <= 0 ? (
                 'Enter an amount'
               ) : quoteLoading ? (
