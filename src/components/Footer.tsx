@@ -4,7 +4,7 @@ function Footer() {
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-8 sm:px-6 md:grid-cols-[1fr_auto] md:items-start lg:px-8">
         <div className="max-w-xs">
           <a href="#bridge" className="inline-flex items-center gap-2.5 rounded-lg focus-visible:outline-none">
-            <img src="/ArcBridge.png" alt="" className="h-9 w-9 object-contain" />
+            <img src="/ArcBridge.png" alt="" className="h-12 w-12 object-contain" />
             <span className="text-sm font-semibold tracking-[-0.04em] text-white">ArcBridge</span>
           </a>
           <p className="mt-3 text-sm leading-6 text-slate-500">Cross-chain USDC bridging across the Arc ecosystem.</p>
