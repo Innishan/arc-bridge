@@ -46,7 +46,7 @@ function Navbar({ isConnected, address, onConnect, activePage = 'bridge' }: Navb
   return (
     <header className="arc-navbar w-full border-b border-white/[0.09] bg-slate-950/20 backdrop-blur-xl">
       <div className="mx-auto flex min-h-18 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <a href="#bridge" className="group flex shrink-0 items-center gap-3 rounded-lg py-1 focus-visible:outline-none">
+        <a href="#bridge" className="group flex shrink-0 items-center gap-0.5 rounded-lg py-1 focus-visible:outline-none">
           <img src="/ArcBridge.png" alt="" className="h-13 w-13 object-contain sm:h-15 sm:w-15" />
           <span className="text-[0.98rem] font-semibold tracking-[-0.04em] text-white">ArcBridge</span>
         </a>
